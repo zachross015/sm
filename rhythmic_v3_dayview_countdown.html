@@ -1,0 +1,1221 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>Rhythmic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;1,9..144,300&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+/* =====================================================
+   RHYTHMIC v3
+   Changes vs v2:
+     - Calendar day tap now sets the "viewed date" and
+       auto-fills the Today screen with that day's data
+     - Action buttons are disabled (read-only) when
+       viewing a past or future date
+     - "Today" button in calendar header snaps back
+     - Days until June 30 fixed: uses date-only math
+       (no clock-time bleed) so it always shows the
+       correct integer number of calendar days remaining
+   ===================================================== */
+
+:root {
+  --linen:      #F2EEE6;
+  --tan:        #C6A585;
+  --granite:    #405147;
+  --ash:        #9CB7B1;
+  --sage:       #BEC9A6;
+  --azure:      #D1E1DD;
+  --granite-dk: #2d3a31;
+  --tan-lt:     #e8d5bf;
+  --linen-dk:   #e8e2d6;
+
+  --ff-head: 'Fraunces', Georgia, serif;
+  --ff-body: 'Work Sans', system-ui, sans-serif;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  --t-slow: 0.5s cubic-bezier(0.4,0,0.2,1);
+  --t-mid:  0.3s cubic-bezier(0.4,0,0.2,1);
+  --t-fast: 0.15s ease;
+}
+
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+
+body {
+  font-family: var(--ff-body);
+  background: var(--linen);
+  color: var(--granite);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Nav --- */
+.nav {
+  background: var(--granite);
+  padding: 0 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 54px;
+  position: sticky; top: 0; z-index: 100;
+}
+.nav-logo {
+  font-family: var(--ff-head);
+  font-weight: 300; font-size: 22px;
+  color: var(--linen);
+  letter-spacing: 0.04em; 
+}
+
+/* --- Screens --- */
+.screen { display:none; padding: 20px 16px 100px; max-width: 440px; margin: 0 auto; }
+.screen.active { display:block; }
+
+.section-label {
+  font-family: var(--ff-head);
+  font-size: 11px; font-weight: 400;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--tan); margin-bottom: 10px;
+}
+
+/* --- Cards --- */
+.card {
+  background: #fff;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--linen-dk);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: var(--ff-head);
+  font-size: 16px; font-weight: 400;
+  color: var(--granite); margin-bottom: 4px;
+}
+
+/* --- Countdown --- */
+.countdown-card {
+  background: var(--granite);
+  border-radius: var(--radius-lg);
+  padding: 18px; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 16px;
+}
+.countdown-num {
+  font-family: var(--ff-head);
+  font-size: 44px; font-weight: 300;
+  color: var(--tan); line-height: 1; flex-shrink: 0;
+}
+.countdown-text { color: var(--linen); font-size: 14px; line-height: 1.5; }
+.countdown-text strong { color: var(--sage); font-weight: 500; }
+
+/* --- Progress bar --- */
+.progress-bar-bg {
+  height: 6px; background: var(--linen-dk);
+  border-radius: 99px; overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%; background: var(--granite);
+  border-radius: 99px;
+  transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+}
+.progress-labels {
+  display: flex; justify-content: space-between;
+  font-size: 11px; color: var(--ash); margin-top: 5px;
+}
+
+/* --- Viewed-date banner --- */
+.date-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--tan-lt);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--tan);
+  transition: opacity var(--t-mid), max-height var(--t-mid);
+}
+.date-banner.hidden { display: none; }
+.date-banner-label {
+  font-family: var(--ff-head);
+  font-size: 14px; font-weight: 400;
+  color: var(--granite);
+}
+.date-banner-sub { font-size: 11px; color: var(--tan); margin-top: 1px; }
+.date-banner-back {
+  background: var(--granite); border: none;
+  color: var(--linen); font-family: var(--ff-body);
+  font-size: 11px; font-weight: 500;
+  padding: 5px 10px; border-radius: var(--radius-sm);
+  cursor: pointer; white-space: nowrap;
+  letter-spacing: 0.04em;
+  transition: opacity var(--t-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+.date-banner-back:active { opacity: 0.7; }
+
+/* --- Action counter --- */
+.action-counter {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 16px;
+}
+.action-big-num {
+  font-family: var(--ff-head);
+  font-size: 52px; font-weight: 300;
+  color: var(--granite); line-height: 1;
+}
+.action-big-num span { font-size: 20px; color: var(--ash); font-weight: 300; }
+.action-ring-wrap { position:relative; width:72px; height:72px; }
+.action-ring-wrap svg { position:absolute; top:0; left:0; transform:rotate(-90deg); }
+.action-ring-center {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:500; color:var(--granite);
+}
+
+/* --- Action type buttons --- */
+.action-types { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.action-type-btn {
+  background: var(--linen);
+  border: 1.5px solid var(--linen-dk);
+  border-radius: var(--radius-md);
+  padding: 12px 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  transition: background var(--t-mid), border-color var(--t-mid), transform var(--t-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+.action-type-btn:not([disabled]):hover { background:var(--azure); border-color:var(--ash); }
+.action-type-btn:not([disabled]):active { transform:scale(0.97); }
+/* Read-only state when viewing a past/future day */
+.action-type-btn[disabled] {
+  cursor: default;
+  opacity: 0.6;
+}
+.action-type-label { font-size:13px; font-weight:500; color:var(--granite); }
+.action-type-sub   { font-size:10px; color:var(--ash); }
+.action-type-count {
+  font-family: var(--ff-head); font-size:22px;
+  font-weight:300; color:var(--granite); line-height:1;
+}
+.action-type-btn.tapped {
+  background: var(--sage); border-color: var(--granite);
+  animation: tapPulse 0.35s ease;
+}
+@keyframes tapPulse {
+  0%   { transform:scale(1); }
+  40%  { transform:scale(1.04); }
+  100% { transform:scale(1); }
+}
+
+/* --- Undo button --- */
+.undo-row {
+  display: flex; align-items: center; justify-content: flex-end;
+  margin-top: 10px; margin-bottom: 2px; min-height: 28px;
+}
+.undo-btn {
+  background: none; border: none; cursor: pointer;
+  font-family: var(--ff-body); font-size: 12px;
+  color: var(--ash); display: flex; align-items: center; gap: 5px;
+  padding: 4px 0; border-radius: var(--radius-sm);
+  transition: color var(--t-fast), opacity var(--t-fast);
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0; pointer-events: none;
+}
+.undo-btn.visible { opacity: 1; pointer-events: all; }
+.undo-btn:hover { color: var(--granite); }
+.undo-btn:active { opacity: 0.6; }
+
+/* --- Goal banner --- */
+.goal-banner {
+  border-radius: var(--radius-md); padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 500; margin-top: 14px;
+  transition: all var(--t-slow); min-height: 44px;
+}
+.goal-banner.pending { background:var(--linen-dk); color:var(--ash); border:1px dashed var(--tan-lt); }
+.goal-banner.done    { background:var(--sage); color:var(--granite-dk); border:1px solid var(--granite); }
+.goal-dot {
+  width:8px; height:8px; border-radius:50%;
+  flex-shrink:0; background:var(--ash);
+  transition:background var(--t-slow);
+}
+.goal-banner.done .goal-dot { background:var(--granite); }
+
+/* --- Confetti --- */
+#confetti-canvas {
+  position:fixed; top:0; left:0;
+  width:100%; height:100%;
+  pointer-events:none; z-index:9999;
+}
+
+/* =====================================================
+   PAGINATED STREAK CALENDAR
+   ===================================================== */
+.cal-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; gap: 6px;
+}
+.cal-nav-month {
+  font-family: var(--ff-head); font-size: 15px;
+  font-weight: 400; color: var(--granite);
+  flex: 1; text-align: center;
+}
+.cal-nav-btn {
+  background: none; border: 1px solid var(--linen-dk);
+  border-radius: var(--radius-sm); padding: 5px 10px;
+  cursor: pointer; font-family: var(--ff-body);
+  font-size: 13px; color: var(--ash);
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.cal-nav-btn:hover { background:var(--linen-dk); color:var(--granite); border-color:var(--ash); }
+.cal-nav-btn:disabled { opacity:0.3; pointer-events:none; }
+.cal-nav-btn.today-btn {
+  background: var(--granite); border-color: var(--granite);
+  color: var(--linen); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.cal-nav-btn.today-btn:hover { background: var(--granite-dk); border-color: var(--granite-dk); }
+
+.streak-cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;
+  margin-bottom: 6px;
+}
+.cal-day-label {
+  text-align:center; font-size:10px; font-weight:500;
+  color:var(--ash); text-transform:uppercase;
+  letter-spacing:0.04em; padding-bottom:4px;
+}
+.cal-day {
+  aspect-ratio:1; border-radius:var(--radius-sm);
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:400;
+  background:var(--linen); border:1px solid var(--linen-dk);
+  color:var(--ash);
+  transition:background var(--t-mid), border-color var(--t-mid), transform var(--t-fast);
+  cursor:pointer; -webkit-tap-highlight-color:transparent;
+}
+.cal-day:not(.future):not(.empty):hover { background:var(--azure); border-color:var(--ash); transform:scale(1.06); }
+.cal-day.done    { background:var(--granite); border-color:var(--granite); color:var(--linen); font-weight:500; }
+.cal-day.partial { background:var(--sage); border-color:var(--sage); color:var(--granite-dk); }
+.cal-day.today   { border-color:var(--tan); color:var(--granite); font-weight:600; }
+.cal-day.today.done    { background:var(--granite); border-color:var(--tan); color:var(--linen); }
+.cal-day.today.partial { background:var(--sage); border-color:var(--tan); }
+/* Actively selected day (the one filling the screen) */
+.cal-day.selected {
+  outline: 2px solid var(--tan);
+  outline-offset: 1px;
+}
+.cal-day.future { background:transparent; border-color:transparent; color:var(--linen-dk); cursor:default; }
+.cal-day.future:hover { transform:none; }
+.cal-day.empty  { background:transparent; border:none; cursor:default; }
+.cal-day.empty:hover  { transform:none; }
+
+.streak-stat {
+  font-family:var(--ff-head); font-size:13px;
+  font-weight:300; color:var(--ash);
+  text-align:center; margin-top:10px;
+}
+.streak-stat strong { color:var(--granite); font-weight:400; }
+.cal-legend {
+  display:flex; gap:12px; margin-top:10px; justify-content:center;
+}
+.cal-legend-item { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--ash); }
+.cal-legend-dot  { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+
+/* --- Leads --- */
+.lead-list { display:flex; flex-direction:column; gap:10px; }
+.lead-card {
+  background:#fff; border-radius:var(--radius-md);
+  border:1px solid var(--linen-dk); padding:14px;
+  display:flex; gap:12px; align-items:flex-start;
+  cursor:pointer;
+  transition:border-color var(--t-mid), transform var(--t-fast);
+  -webkit-tap-highlight-color:transparent;
+}
+.lead-card:active { transform:scale(0.985); }
+.lead-card:hover  { border-color:var(--ash); }
+.lead-card.priority-high { border-left:3px solid var(--granite); border-radius:0 var(--radius-md) var(--radius-md) 0; }
+.lead-card.priority-med  { border-left:3px solid var(--tan);     border-radius:0 var(--radius-md) var(--radius-md) 0; }
+.lead-card.priority-low  { border-left:3px solid var(--sage);    border-radius:0 var(--radius-md) var(--radius-md) 0; }
+.lead-avatar {
+  width:40px; height:40px; border-radius:50%;
+  background:var(--azure); display:flex;
+  align-items:center; justify-content:center;
+  font-family:var(--ff-head); font-size:15px;
+  font-weight:400; color:var(--granite); flex-shrink:0;
+}
+.lead-info { flex:1; min-width:0; }
+.lead-name   { font-weight:500; font-size:14px; color:var(--granite); }
+.lead-detail { font-size:12px; color:var(--ash); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lead-status-pill {
+  font-size:10px; font-weight:500; letter-spacing:0.06em;
+  text-transform:uppercase; padding:3px 8px;
+  border-radius:99px; white-space:nowrap; flex-shrink:0; margin-top:2px;
+}
+.pill-new       { background:var(--azure);    color:var(--granite); }
+.pill-contacted { background:var(--sage);     color:var(--granite-dk); }
+.pill-warm      { background:var(--tan-lt);   color:var(--granite-dk); }
+.pill-client    { background:var(--granite);  color:var(--linen); }
+.pill-cold      { background:var(--linen-dk); color:var(--ash); }
+
+/* --- FAB --- */
+.fab {
+  position:fixed; bottom:88px; right:20px;
+  width:52px; height:52px; border-radius:50%;
+  background:var(--granite); border:none; color:var(--linen);
+  font-size:26px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  z-index:50;
+  transition:transform var(--t-fast), background var(--t-fast);
+  -webkit-tap-highlight-color:transparent;
+}
+.fab:active { transform:scale(0.93); }
+.fab:hover  { background:var(--granite-dk); }
+
+/* --- Lead Modal --- */
+.modal-overlay {
+  position:fixed; inset:0;
+  background:rgba(64,81,71,0.45); z-index:300;
+  display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none;
+  transition:opacity var(--t-slow);
+}
+.modal-overlay.open { opacity:1; pointer-events:all; }
+.modal {
+  background:var(--linen);
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+  padding:24px 20px 40px; width:100%; max-width:440px;
+  transform:translateY(100%);
+  transition:transform var(--t-slow);
+}
+.modal-overlay.open .modal { transform:translateY(0); }
+.modal-handle { width:36px; height:4px; background:var(--tan-lt); border-radius:99px; margin:0 auto 20px; }
+.modal-title  { font-family:var(--ff-head); font-size:20px; font-weight:400; color:var(--granite); margin-bottom:18px; }
+.field { margin-bottom:14px; }
+.field label {
+  display:block; font-size:12px; font-weight:500;
+  color:var(--ash); margin-bottom:5px;
+  letter-spacing:0.05em; text-transform:uppercase;
+}
+.field input,.field select,.field textarea {
+  width:100%; background:#fff;
+  border:1px solid var(--linen-dk); border-radius:var(--radius-sm);
+  padding:10px 12px; font-family:var(--ff-body);
+  font-size:14px; color:var(--granite); outline:none;
+  transition:border-color var(--t-fast);
+}
+.field input:focus,.field select:focus,.field textarea:focus { border-color:var(--ash); }
+.field textarea { resize:vertical; min-height:72px; }
+.btn-row { display:flex; gap:10px; margin-top:18px; }
+.btn {
+  flex:1; padding:12px; border-radius:var(--radius-md);
+  font-family:var(--ff-body); font-size:14px; font-weight:500;
+  cursor:pointer; border:none;
+  transition:opacity var(--t-fast), transform var(--t-fast);
+  -webkit-tap-highlight-color:transparent;
+}
+.btn:active { transform:scale(0.97); opacity:0.85; }
+.btn-primary   { background:var(--granite); color:var(--linen); }
+.btn-secondary { background:var(--linen-dk); color:var(--ash); }
+.btn-danger    { background:#fff; color:#c0392b; border:1px solid #f5c6c6; }
+.priority-row { display:flex; gap:8px; }
+.priority-opt {
+  flex:1; padding:8px 4px; border-radius:var(--radius-sm);
+  text-align:center; font-size:12px; font-weight:500;
+  cursor:pointer; border:1.5px solid var(--linen-dk);
+  background:#fff; color:var(--ash);
+  transition:all var(--t-fast);
+  -webkit-tap-highlight-color:transparent;
+}
+.priority-opt.sel-high { background:var(--granite); border-color:var(--granite); color:var(--linen); }
+.priority-opt.sel-med  { background:var(--tan);     border-color:var(--tan);     color:#fff; }
+.priority-opt.sel-low  { background:var(--sage);    border-color:var(--sage);    color:var(--granite-dk); }
+
+/* --- Bottom nav --- */
+.bottom-nav {
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--granite);
+  display:flex; height:70px;
+  padding-bottom:env(safe-area-inset-bottom,0); z-index:100;
+}
+.bnav-btn {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:3px; background:none; border:none; cursor:pointer;
+  color:var(--ash); font-family:var(--ff-body);
+  font-size:10px; font-weight:500;
+  letter-spacing:0.04em; text-transform:uppercase;
+  transition:color var(--t-fast);
+  -webkit-tap-highlight-color:transparent;
+}
+.bnav-btn svg { width:22px; height:22px; stroke:currentColor; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.bnav-btn.active { color:var(--tan); }
+
+.empty-state { text-align:center; padding:40px 20px; color:var(--ash); font-size:14px; }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<nav class="nav">
+  <span class="nav-logo">Rhythmic</span>
+</nav>
+
+<!-- ====== TODAY ====== -->
+<section class="screen active" id="screen-today">
+
+  <div class="countdown-card">
+    <div class="countdown-num" id="days-left">—</div>
+    <div class="countdown-text">
+      days until <strong>June 30</strong><br/>
+      <span id="actions-this-week" style="font-size:12px;color:var(--ash);">loading...</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Campaign progress</div>
+    <div style="font-size:12px;color:var(--ash);margin-bottom:12px;">Tracking daily actions toward your first client</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+    </div>
+    <div class="progress-labels">
+      <span>May 22</span>
+      <span id="progress-pct">0%</span>
+      <span>Jun 30</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <!-- Banner shown only when viewing a date that isn't today -->
+    <div class="date-banner hidden" id="date-banner">
+      <div>
+        <div class="date-banner-label" id="date-banner-label">—</div>
+        <div class="date-banner-sub">Read-only — tap buttons to log today</div>
+      </div>
+      <button class="date-banner-back" onclick="returnToToday()">← Today</button>
+    </div>
+
+    <div class="section-label" id="actions-section-label">Today's actions</div>
+    <div class="action-counter">
+      <div>
+        <div class="action-big-num" id="today-count">0 <span>/ 5</span></div>
+        <div style="font-size:12px;color:var(--ash);margin-top:2px;" id="actions-subtitle">actions logged today</div>
+      </div>
+      <div class="action-ring-wrap">
+        <svg width="72" height="72" viewBox="0 0 72 72">
+          <circle cx="36" cy="36" r="30" fill="none" stroke="#e8e2d6" stroke-width="7"/>
+          <circle cx="36" cy="36" r="30" fill="none" stroke="#405147" stroke-width="7"
+            stroke-dasharray="188.5" stroke-dashoffset="188.5"
+            stroke-linecap="round" id="ring-circle"
+            style="transition:stroke-dashoffset 0.7s cubic-bezier(0.4,0,0.2,1)"/>
+        </svg>
+        <div class="action-ring-center" id="ring-pct">0%</div>
+      </div>
+    </div>
+
+    <div class="action-types">
+      <button class="action-type-btn" id="btn-stories" onclick="logAction('stories')">
+        <div>
+          <div class="action-type-label">Stories</div>
+          <div class="action-type-sub" id="sub-stories">tap to log</div>
+        </div>
+        <div class="action-type-count" id="count-stories">0</div>
+      </button>
+      <button class="action-type-btn" id="btn-posts" onclick="logAction('posts')">
+        <div>
+          <div class="action-type-label">Posts</div>
+          <div class="action-type-sub" id="sub-posts">tap to log</div>
+        </div>
+        <div class="action-type-count" id="count-posts">0</div>
+      </button>
+      <button class="action-type-btn" id="btn-comments" onclick="logAction('comments')">
+        <div>
+          <div class="action-type-label">Comments</div>
+          <div class="action-type-sub" id="sub-comments">tap to log</div>
+        </div>
+        <div class="action-type-count" id="count-comments">0</div>
+      </button>
+      <button class="action-type-btn" id="btn-dms" onclick="logAction('dms')">
+        <div>
+          <div class="action-type-label">DMs</div>
+          <div class="action-type-sub" id="sub-dms">tap to log</div>
+        </div>
+        <div class="action-type-count" id="count-dms">0</div>
+      </button>
+    </div>
+
+    <div class="undo-row">
+      <button class="undo-btn" id="undo-btn" onclick="undoLastAction()">
+        <span style="font-size:14px;">↩</span>
+        <span id="undo-label">Undo last action</span>
+      </button>
+    </div>
+
+    <div class="goal-banner pending" id="goal-banner">
+      <div class="goal-dot"></div>
+      <span id="goal-text">Log 5 actions to hit today's goal</span>
+    </div>
+  </div>
+
+  <!-- Paginated streak calendar -->
+  <div class="card">
+    <div class="section-label">Streak calendar</div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" id="cal-prev" onclick="calChangePage(-1)">← Prev</button>
+      <div class="cal-nav-month" id="cal-month-label">—</div>
+      <button class="cal-nav-btn today-btn" id="cal-today-btn" onclick="returnToToday()">Today</button>
+      <button class="cal-nav-btn" id="cal-next" onclick="calChangePage(1)">Next →</button>
+    </div>
+    <div class="streak-cal-grid" id="streak-labels"></div>
+    <div class="streak-cal-grid" id="streak-cal"></div>
+    <div class="cal-legend">
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--granite);"></div>Goal hit</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--sage);border:1px solid var(--sage);"></div>Partial</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--linen);border:1px solid var(--linen-dk);"></div>None</div>
+    </div>
+    <div class="streak-stat" id="streak-stat">—</div>
+  </div>
+
+</section>
+
+<!-- ====== LEADS ====== -->
+<section class="screen" id="screen-leads">
+  <div class="section-label" style="margin-top:4px;">Pipeline</div>
+  <div style="font-family:var(--ff-head);font-size:22px;margin-bottom:4px;color:var(--granite);">Lead tracker</div>
+  <div style="font-size:13px;color:var(--ash);margin-bottom:18px;">One client. Every lead matters.</div>
+  <div class="lead-list" id="lead-list"></div>
+  <div class="empty-state" id="leads-empty" style="display:none;">
+    <div style="font-size:32px;margin-bottom:10px;">🎯</div>
+    <div>No leads yet.<br/>Tap + to add your first.</div>
+  </div>
+</section>
+
+<!-- ====== HISTORY ====== -->
+<section class="screen" id="screen-history">
+  <div class="section-label" style="margin-top:4px;">Your journey</div>
+  <div style="font-family:var(--ff-head);font-size:22px;margin-bottom:16px;color:var(--granite);">History</div>
+  <div class="card">
+    <div class="section-label">Totals to date</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;" id="history-totals"></div>
+  </div>
+  <div class="card">
+    <div class="section-label">Daily log</div>
+    <div id="history-log"></div>
+  </div>
+</section>
+
+<!-- ====== BOTTOM NAV ====== -->
+<nav class="bottom-nav">
+  <button class="bnav-btn active" id="bnav-today" onclick="showScreen('today')">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    Today
+  </button>
+  <button class="bnav-btn" id="bnav-leads" onclick="showScreen('leads')">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    Leads
+  </button>
+  <button class="bnav-btn" id="bnav-history" onclick="showScreen('history')">
+    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.5 8l-5 5-4-4-3 3"/></svg>
+    History
+  </button>
+</nav>
+
+<button class="fab" id="fab" onclick="openLeadModal()" style="display:none;">+</button>
+
+<!-- ====== LEAD MODAL ====== -->
+<div class="modal-overlay" id="lead-modal" onclick="closeLeadModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-title">Add lead</div>
+    <input type="hidden" id="modal-lead-id"/>
+    <div class="field"><label>Name</label><input type="text" id="modal-name" placeholder="e.g. Sarah Chen"/></div>
+    <div class="field"><label>Details / Platform</label><input type="text" id="modal-detail" placeholder="e.g. @sarahchen · Instagram"/></div>
+    <div class="field"><label>Status</label>
+      <select id="modal-status">
+        <option value="new">New</option>
+        <option value="contacted">Contacted</option>
+        <option value="warm">Warm</option>
+        <option value="client">Client ✓</option>
+        <option value="cold">Cold</option>
+      </select>
+    </div>
+    <div class="field"><label>Priority</label>
+      <div class="priority-row">
+        <div class="priority-opt" id="pri-high" onclick="selectPriority('high')">High</div>
+        <div class="priority-opt" id="pri-med"  onclick="selectPriority('med')">Medium</div>
+        <div class="priority-opt" id="pri-low"  onclick="selectPriority('low')">Low</div>
+      </div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="modal-notes" placeholder="What do you know about them? Next step?"></textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="closeLeadModal()">Cancel</button>
+      <button class="btn btn-primary"   onclick="saveLead()">Save</button>
+    </div>
+    <div class="btn-row" id="delete-btn-row" style="display:none;margin-top:6px;">
+      <button class="btn btn-danger" onclick="deleteLead()">Delete lead</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================
+   RHYTHMIC v3 — ViewModel
+   localStorage key: "rhythmic_v1" (carries over from v1/v2)
+
+   Key changes in v3:
+   ─ viewedDateKey: the date currently shown in the
+     action panel. Defaults to todayKey(). Tapping a
+     calendar cell sets this and re-renders the panel
+     in read-only mode for non-today dates.
+   ─ isViewingToday(): convenience predicate used
+     throughout to gate editing vs. display.
+   ─ daysUntilJune30(): fixed to use date-string math
+     instead of Date arithmetic, eliminating timezone /
+     clock-time bleed that was causing off-by-one errors.
+   ─ returnToToday(): resets viewedDateKey, snaps the
+     calendar to today's month, re-renders.
+   ===================================================== */
+
+const KEY = 'rhythmic_v1';
+
+function loadState() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || defaultState(); }
+  catch { return defaultState(); }
+}
+function defaultState() { return { dailyLog: {}, leads: [] }; }
+function saveState(s)   { localStorage.setItem(KEY, JSON.stringify(s)); }
+
+let state = loadState();
+
+/* --- Session state --- */
+let undoStack    = [];
+let viewedDateKey = todayKey(); // which date the action panel shows
+
+/* --- Calendar pagination --- */
+const CAL_START = { year: 2025, month: 4 }; // May  (0-indexed)
+const CAL_END   = { year: 2025, month: 5 }; // June
+
+let calViewYear  = new Date().getFullYear();
+let calViewMonth = new Date().getMonth();
+calViewMonth = Math.max(CAL_START.month, Math.min(CAL_END.month, calViewMonth));
+
+/* =====================================================
+   UTILITIES
+   ===================================================== */
+
+/* Returns today's date as "YYYY-MM-DD" using LOCAL time
+   so it never drifts due to timezone offsets. */
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function isViewingToday() { return viewedDateKey === todayKey(); }
+
+function getDay(key) {
+  return state.dailyLog[key] || { stories:0, posts:0, comments:0, dms:0, goalHit:false };
+}
+
+function totalActions(d) {
+  return (d.stories||0)+(d.posts||0)+(d.comments||0)+(d.dms||0);
+}
+
+function initials(name) {
+  return name.trim().split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+
+/*
+  Days until June 30:
+  We compare date strings directly to avoid all clock-time
+  and timezone issues. "2025-06-30" minus today in whole days.
+*/
+function daysUntilJune30() {
+  const today  = todayKey();
+  const target = '2025-06-30';
+  if (today >= target) return 0;
+  /* Parse both as local midnight to get a clean diff */
+  const [ty,tm,td] = today.split('-').map(Number);
+  const t1 = new Date(ty, tm-1, td);
+  const t2 = new Date(2025, 5, 30); // June 30, local midnight
+  return Math.round((t2 - t1) / 86400000);
+}
+
+function campaignProgressPct() {
+  const start = new Date(2025, 4, 22); // May 22 local
+  const end   = new Date(2025, 5, 30); // Jun 30 local
+  const now   = new Date();
+  return Math.min(100, Math.max(0, Math.round(((now - start) / (end - start)) * 100)));
+}
+
+function formatDateLabel(key) {
+  const [y,m,d] = key.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleDateString('en-US',
+    { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+}
+
+function formatDateShort(key) {
+  const [y,m,d] = key.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleDateString('en-US',
+    { weekday:'short', month:'short', day:'numeric' });
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* =====================================================
+   SCREEN ROUTING
+   ===================================================== */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+  document.getElementById('bnav-'+id).classList.add('active');
+  document.getElementById('fab').style.display = id==='leads' ? 'flex' : 'none';
+  if (id==='today')   renderToday();
+  if (id==='leads')   renderLeads();
+  if (id==='history') renderHistory();
+}
+
+/* =====================================================
+   DATE NAVIGATION
+   Tapping a calendar day sets viewedDateKey and
+   re-renders the action panel. Past/future = read-only.
+   ===================================================== */
+function viewDay(dateKey) {
+  viewedDateKey = dateKey;
+  renderToday();
+  /* Scroll the action card into view smoothly */
+  document.getElementById('screen-today').scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function returnToToday() {
+  viewedDateKey = todayKey();
+  calViewYear   = new Date().getFullYear();
+  calViewMonth  = new Date().getMonth();
+  calViewMonth  = Math.max(CAL_START.month, Math.min(CAL_END.month, calViewMonth));
+  renderToday();
+}
+
+/* =====================================================
+   ACTION LOGGING
+   Only allowed when viewedDateKey === todayKey()
+   ===================================================== */
+function logAction(type) {
+  if (!isViewingToday()) return; // guard: read-only on past dates
+
+  const key = todayKey();
+  if (!state.dailyLog[key]) state.dailyLog[key] = { stories:0, posts:0, comments:0, dms:0, goalHit:false };
+  state.dailyLog[key][type]++;
+  undoStack.push({ dateKey: key, type });
+
+  const total  = totalActions(state.dailyLog[key]);
+  const wasHit = state.dailyLog[key].goalHit;
+
+  if (total >= 5 && !wasHit) {
+    state.dailyLog[key].goalHit = true;
+    saveState(state);
+    renderToday();
+    setTimeout(fireConfetti, 200);
+  } else {
+    saveState(state);
+    renderToday();
+  }
+
+  const btn = document.getElementById('btn-'+type);
+  btn.classList.add('tapped');
+  setTimeout(() => btn.classList.remove('tapped'), 350);
+}
+
+function undoLastAction() {
+  if (!undoStack.length || !isViewingToday()) return;
+  const { dateKey, type } = undoStack.pop();
+  if (!state.dailyLog[dateKey]) return;
+  state.dailyLog[dateKey][type] = Math.max(0, (state.dailyLog[dateKey][type]||0) - 1);
+  const total = totalActions(state.dailyLog[dateKey]);
+  state.dailyLog[dateKey].goalHit = total >= 5;
+  if (total === 0) delete state.dailyLog[dateKey];
+  saveState(state);
+  renderToday();
+}
+
+/* =====================================================
+   RENDER: TODAY (or any viewed date)
+   ===================================================== */
+function renderToday() {
+  const key       = viewedDateKey;
+  const isToday   = isViewingToday();
+  const day       = getDay(key);
+  const total     = totalActions(day);
+  const pct       = Math.min(100, Math.round((total / 5) * 100));
+
+  /* --- Date banner --- */
+  const banner = document.getElementById('date-banner');
+  if (isToday) {
+    banner.classList.add('hidden');
+  } else {
+    banner.classList.remove('hidden');
+    document.getElementById('date-banner-label').textContent = formatDateLabel(key);
+  }
+
+  /* --- Section label & subtitle --- */
+  document.getElementById('actions-section-label').textContent =
+    isToday ? "Today's actions" : "Actions logged";
+  document.getElementById('actions-subtitle').textContent =
+    isToday ? 'actions logged today' : 'actions on this day';
+
+  /* --- Counts --- */
+  document.getElementById('today-count').innerHTML = `${total} <span>/ 5</span>`;
+  document.getElementById('count-stories').textContent  = day.stories  || 0;
+  document.getElementById('count-posts').textContent    = day.posts    || 0;
+  document.getElementById('count-comments').textContent = day.comments || 0;
+  document.getElementById('count-dms').textContent      = day.dms      || 0;
+
+  /* --- Action buttons: enabled only for today --- */
+  ['stories','posts','comments','dms'].forEach(t => {
+    const btn = document.getElementById('btn-'+t);
+    const sub = document.getElementById('sub-'+t);
+    if (isToday) {
+      btn.removeAttribute('disabled');
+      sub.textContent = 'tap to log';
+    } else {
+      btn.setAttribute('disabled', '');
+      sub.textContent = 'read-only';
+    }
+  });
+
+  /* --- Ring --- */
+  const offset = 188.5 - (pct / 100) * 188.5;
+  document.getElementById('ring-circle').style.strokeDashoffset = offset;
+  document.getElementById('ring-pct').textContent = pct + '%';
+
+  /* --- Goal banner --- */
+  const goalBanner = document.getElementById('goal-banner');
+  const goalText   = document.getElementById('goal-text');
+  if (day.goalHit || total >= 5) {
+    goalBanner.className = 'goal-banner done';
+    goalText.textContent = isToday
+      ? "Goal hit! Today's groove is complete."
+      : "Goal was hit on this day.";
+  } else {
+    goalBanner.className = 'goal-banner pending';
+    if (isToday) {
+      const rem = 5 - total;
+      goalText.textContent = `${rem} more action${rem!==1?'s':''} to hit today's goal`;
+    } else {
+      goalText.textContent = total > 0
+        ? `${total} of 5 actions logged — goal not reached`
+        : 'No actions logged on this day';
+    }
+  }
+
+  /* --- Undo --- only for today --- */
+  const undoBtn = document.getElementById('undo-btn');
+  if (isToday && undoStack.length > 0) {
+    undoBtn.classList.add('visible');
+    const labels = { stories:'story', posts:'post', comments:'comment', dms:'DM' };
+    document.getElementById('undo-label').textContent =
+      `Undo last ${labels[undoStack[undoStack.length-1].type]||'action'}`;
+  } else {
+    undoBtn.classList.remove('visible');
+  }
+
+  /* --- Countdown (date-safe) --- */
+  document.getElementById('days-left').textContent = daysUntilJune30();
+
+  /* --- Week actions --- */
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate()-7);
+  const weekTotal = Object.keys(state.dailyLog)
+    .filter(k => new Date(k) >= weekAgo)
+    .reduce((s,k) => s + totalActions(state.dailyLog[k]), 0);
+  document.getElementById('actions-this-week').textContent = `${weekTotal} actions this week`;
+
+  /* --- Progress bar --- */
+  const prog = campaignProgressPct();
+  document.getElementById('progress-bar').style.width  = prog + '%';
+  document.getElementById('progress-pct').textContent   = prog + '%';
+
+  renderStreakCal();
+}
+
+/* =====================================================
+   PAGINATED STREAK CALENDAR
+   Tapping a past/present day calls viewDay(dateKey),
+   which fills the action panel above with that day's data.
+   "Today" button in the header calls returnToToday().
+   ===================================================== */
+function calChangePage(dir) {
+  calViewMonth += dir;
+  if (calViewMonth < 0)  { calViewYear--;  calViewMonth = 11; }
+  if (calViewMonth > 11) { calViewYear++;  calViewMonth = 0;  }
+  /* Clamp to campaign window */
+  if (calViewYear < CAL_START.year || (calViewYear===CAL_START.year && calViewMonth<CAL_START.month)) {
+    calViewYear = CAL_START.year; calViewMonth = CAL_START.month;
+  }
+  if (calViewYear > CAL_END.year || (calViewYear===CAL_END.year && calViewMonth>CAL_END.month)) {
+    calViewYear = CAL_END.year; calViewMonth = CAL_END.month;
+  }
+  renderStreakCal();
+}
+
+function renderStreakCal() {
+  const labelsEl  = document.getElementById('streak-labels');
+  const calEl     = document.getElementById('streak-cal');
+  const statEl    = document.getElementById('streak-stat');
+  const prevBtn   = document.getElementById('cal-prev');
+  const nextBtn   = document.getElementById('cal-next');
+  const todayBtn  = document.getElementById('cal-today-btn');
+  const monthLbl  = document.getElementById('cal-month-label');
+
+  labelsEl.innerHTML = ['S','M','T','W','T','F','S']
+    .map(l=>`<div class="cal-day-label">${l}</div>`).join('');
+
+  const year      = calViewYear;
+  const month     = calViewMonth;
+  const firstDay  = new Date(year, month, 1).getDay();
+  const daysInMo  = new Date(year, month+1, 0).getDate();
+  const todayStr  = todayKey();
+
+  monthLbl.textContent = new Date(year, month, 1)
+    .toLocaleDateString('en-US', { month:'long', year:'numeric' });
+
+  const atStart = (year===CAL_START.year && month===CAL_START.month);
+  const atEnd   = (year===CAL_END.year   && month===CAL_END.month);
+  prevBtn.disabled = atStart;
+  nextBtn.disabled = atEnd;
+
+  /* Hide "Today" button when already on today's month */
+  const nowMonth = new Date().getMonth();
+  const nowYear  = new Date().getFullYear();
+  todayBtn.style.display = (year===nowYear && month===nowMonth) ? 'none' : '';
+
+  let html = '';
+  for (let i=0; i<firstDay; i++) html += `<div class="cal-day empty"></div>`;
+
+  for (let d=1; d<=daysInMo; d++) {
+    const dateStr  = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const log      = state.dailyLog[dateStr];
+    const total    = log ? totalActions(log) : 0;
+    const isDone   = log && (log.goalHit || total>=5);
+    const isPartial= total>0 && !isDone;
+    const isToday  = dateStr===todayStr;
+    const isFuture = dateStr > todayStr;
+    const isSelected = dateStr === viewedDateKey;
+
+    let cls = 'cal-day';
+    if (isFuture)       cls += ' future';
+    else if (isDone)    cls += ' done';
+    else if (isPartial) cls += ' partial';
+    if (isToday)        cls += ' today';
+    if (isSelected)     cls += ' selected';
+
+    const onclick = isFuture ? '' : `onclick="viewDay('${dateStr}')"`;
+    html += `<div class="${cls}" ${onclick}>${d}</div>`;
+  }
+  calEl.innerHTML = html;
+
+  /* Streak + stats */
+  let streak = 0;
+  let check  = new Date();
+  const [ty,tm,td] = todayStr.split('-').map(Number);
+  const tLog = state.dailyLog[todayStr];
+  if (!tLog || (!tLog.goalHit && totalActions(tLog)<5)) check.setDate(check.getDate()-1);
+  while (true) {
+    const k = `${check.getFullYear()}-${String(check.getMonth()+1).padStart(2,'0')}-${String(check.getDate()).padStart(2,'0')}`;
+    const l = state.dailyLog[k];
+    if (l && (l.goalHit || totalActions(l)>=5)) { streak++; check.setDate(check.getDate()-1); }
+    else break;
+  }
+  const totalGoalDays = Object.values(state.dailyLog)
+    .filter(d => d.goalHit || totalActions(d)>=5).length;
+  statEl.innerHTML = streak>0
+    ? `<strong>${streak}-day streak</strong> · ${totalGoalDays} total goal days`
+    : `${totalGoalDays} total goal days this campaign`;
+}
+
+/* =====================================================
+   CONFETTI
+   ===================================================== */
+function fireConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const colors = ['#405147','#C6A585','#9CB7B1','#BEC9A6','#D1E1DD','#F2EEE6'];
+  const particles = Array.from({length:90}, () => ({
+    x: Math.random()*canvas.width, y:-10,
+    r: Math.random()*6+3,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    vx:(Math.random()-0.5)*2.5, vy:Math.random()*2.5+1.5,
+    ang:Math.random()*Math.PI*2, spin:(Math.random()-0.5)*0.15,
+  }));
+  let frame=0;
+  function tick() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    particles.forEach(p=>{
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.ang);
+      ctx.fillStyle=p.color; ctx.globalAlpha=Math.max(0,1-frame/110);
+      ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.5); ctx.restore();
+      p.x+=p.vx; p.y+=p.vy; p.ang+=p.spin; p.vy+=0.045;
+    });
+    frame++;
+    if (frame<130) requestAnimationFrame(tick);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
+  }
+  tick();
+}
+
+/* =====================================================
+   LEADS
+   ===================================================== */
+const PRIORITY_ORDER = {high:0,med:1,low:2};
+const STATUS_ORDER   = {warm:0,contacted:1,new:2,client:3,cold:4};
+let currentPriority  = 'high';
+
+function renderLeads() {
+  const listEl  = document.getElementById('lead-list');
+  const emptyEl = document.getElementById('leads-empty');
+  if (!state.leads.length) { listEl.innerHTML=''; emptyEl.style.display='block'; return; }
+  emptyEl.style.display='none';
+  const sorted = [...state.leads].sort((a,b)=>{
+    const pd=(PRIORITY_ORDER[a.priority]||2)-(PRIORITY_ORDER[b.priority]||2);
+    return pd!==0?pd:(STATUS_ORDER[a.status]||99)-(STATUS_ORDER[b.status]||99);
+  });
+  const pillClass   = {new:'pill-new',contacted:'pill-contacted',warm:'pill-warm',client:'pill-client',cold:'pill-cold'};
+  const statusLabel = {new:'New',contacted:'Contacted',warm:'Warm ♨',client:'Client ✓',cold:'Cold'};
+  listEl.innerHTML = sorted.map(lead=>`
+    <div class="lead-card priority-${lead.priority}" onclick="openLeadModal('${lead.id}')">
+      <div class="lead-avatar">${initials(lead.name||'?')}</div>
+      <div class="lead-info">
+        <div class="lead-name">${escHtml(lead.name)}</div>
+        <div class="lead-detail">${escHtml(lead.detail||'')}</div>
+        ${lead.notes?`<div class="lead-detail" style="margin-top:4px;font-style:italic;">${escHtml(lead.notes.slice(0,80))}${lead.notes.length>80?'…':''}</div>`:''}
+      </div>
+      <div class="lead-status-pill ${pillClass[lead.status]||'pill-new'}">${statusLabel[lead.status]||lead.status}</div>
+    </div>
+  `).join('');
+}
+
+function openLeadModal(id) {
+  currentPriority='high';
+  if (id) {
+    const lead=state.leads.find(l=>l.id===id);
+    if (!lead) return;
+    document.getElementById('modal-title').textContent='Edit lead';
+    document.getElementById('modal-lead-id').value=lead.id;
+    document.getElementById('modal-name').value=lead.name;
+    document.getElementById('modal-detail').value=lead.detail||'';
+    document.getElementById('modal-status').value=lead.status;
+    document.getElementById('modal-notes').value=lead.notes||'';
+    currentPriority=lead.priority||'high';
+    document.getElementById('delete-btn-row').style.display='flex';
+  } else {
+    document.getElementById('modal-title').textContent='Add lead';
+    document.getElementById('modal-lead-id').value='';
+    document.getElementById('modal-name').value='';
+    document.getElementById('modal-detail').value='';
+    document.getElementById('modal-status').value='new';
+    document.getElementById('modal-notes').value='';
+    currentPriority='high';
+    document.getElementById('delete-btn-row').style.display='none';
+  }
+  updatePriorityUI();
+  document.getElementById('lead-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('modal-name').focus(),350);
+}
+
+function closeLeadModal(event) {
+  if (event && event.target!==document.getElementById('lead-modal')) return;
+  document.getElementById('lead-modal').classList.remove('open');
+}
+
+function selectPriority(p) { currentPriority=p; updatePriorityUI(); }
+
+function updatePriorityUI() {
+  ['high','med','low'].forEach(p=>{
+    document.getElementById('pri-'+p).className=
+      'priority-opt'+(p===currentPriority?` sel-${p}`:'');
+  });
+}
+
+function saveLead() {
+  const id  =document.getElementById('modal-lead-id').value;
+  const name=document.getElementById('modal-name').value.trim();
+  if (!name) { document.getElementById('modal-name').focus(); return; }
+  const lead={
+    id:id||('lead_'+Date.now()), name,
+    detail:  document.getElementById('modal-detail').value.trim(),
+    status:  document.getElementById('modal-status').value,
+    priority:currentPriority,
+    notes:   document.getElementById('modal-notes').value.trim(),
+    createdAt:id?(state.leads.find(l=>l.id===id)||{}).createdAt:new Date().toISOString(),
+  };
+  state.leads=id?state.leads.map(l=>l.id===id?lead:l):[...state.leads,lead];
+  saveState(state);
+  document.getElementById('lead-modal').classList.remove('open');
+  renderLeads();
+}
+
+function deleteLead() {
+  const id=document.getElementById('modal-lead-id').value;
+  state.leads=state.leads.filter(l=>l.id!==id);
+  saveState(state);
+  document.getElementById('lead-modal').classList.remove('open');
+  renderLeads();
+}
+
+/* =====================================================
+   HISTORY
+   ===================================================== */
+function renderHistory() {
+  let totals={stories:0,posts:0,comments:0,dms:0}, goalDays=0;
+  Object.values(state.dailyLog).forEach(d=>{
+    totals.stories+=d.stories||0; totals.posts+=d.posts||0;
+    totals.comments+=d.comments||0; totals.dms+=d.dms||0;
+    if (d.goalHit||totalActions(d)>=5) goalDays++;
+  });
+  const grand=totals.stories+totals.posts+totals.comments+totals.dms;
+  document.getElementById('history-totals').innerHTML=[
+    ['Total actions',grand],['Goal days',goalDays],
+    ['Stories',totals.stories],['Posts',totals.posts],
+    ['Comments',totals.comments],['DMs',totals.dms],
+  ].map(([label,val])=>`
+    <div style="background:var(--linen);border-radius:var(--radius-sm);padding:12px 14px;">
+      <div style="font-size:11px;color:var(--ash);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;">${label}</div>
+      <div style="font-family:var(--ff-head);font-size:26px;font-weight:300;color:var(--granite);">${val}</div>
+    </div>
+  `).join('');
+  const entries=Object.entries(state.dailyLog)
+    .filter(([,d])=>totalActions(d)>0)
+    .sort((a,b)=>b[0].localeCompare(a[0]));
+  const logEl=document.getElementById('history-log');
+  if (!entries.length){logEl.innerHTML='<div style="color:var(--ash);font-size:13px;">No activity logged yet.</div>';return;}
+  logEl.innerHTML=entries.map(([date,d])=>{
+    const t=totalActions(d),hit=d.goalHit||t>=5;
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--linen-dk);">
+        <div>
+          <div style="font-size:14px;font-weight:500;color:var(--granite);">${formatDateShort(date)}</div>
+          <div style="font-size:11px;color:var(--ash);margin-top:2px;">${d.stories||0} stories · ${d.posts||0} posts · ${d.comments||0} comments · ${d.dms||0} DMs</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:var(--ff-head);font-size:20px;font-weight:300;color:${hit?'var(--granite)':'var(--ash)'};">${t}</div>
+          <div style="font-size:10px;color:${hit?'var(--granite)':'var(--ash)'};">${hit?'✓ goal':'actions'}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* =====================================================
+   INIT
+   ===================================================== */
+renderToday();
+showScreen('today');
+</script>
+</body>
+</html>
